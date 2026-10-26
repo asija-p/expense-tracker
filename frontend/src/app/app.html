@@ -1,0 +1,361 @@
+<main class="app-shell">
+  @if (user; as currentUser) {
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Pennywise home">
+        <span class="brand-mark">p</span>
+        <span>Pennywise</span>
+      </a>
+      <div class="topbar-actions">
+        <span class="signed-in">Signed in as {{ currentUser.email }}</span>
+        <button class="button button-quiet" type="button" (click)="logout()">Log out</button>
+      </div>
+    </header>
+
+    <section class="dashboard">
+      <div class="welcome-row">
+        <div>
+          <p class="eyebrow">YOUR MONEY, IN FOCUS</p>
+          <h1>Hi, {{ currentUser.name }} <span class="wave">✦</span></h1>
+          <p class="welcome-copy">A clearer picture of where your money goes.</p>
+        </div>
+        <div class="welcome-actions">
+          <button class="button button-outline" type="button" (click)="showCategoryForm = true">
+            Manage categories
+          </button>
+          <button class="button button-primary" type="button" (click)="showExpenseForm = true">
+            <span aria-hidden="true">＋</span> Add new expense
+          </button>
+        </div>
+      </div>
+
+      @if (pageError) {
+        <div class="notice notice-error" role="alert">{{ pageError }}</div>
+      }
+      @if (pageMessage) {
+        <div class="notice notice-success" role="status">{{ pageMessage }}</div>
+      }
+
+      <section class="summary-grid" aria-label="Expense summary">
+        <article class="summary-card summary-card-primary">
+          <div class="summary-label"><span class="summary-icon">↗</span> Total expenses</div>
+          <p class="summary-value">{{ totalSpent | currency: 'EUR' }}</p>
+          <p class="summary-note">Across all recorded time</p>
+        </article>
+        <article class="summary-card">
+          <div class="summary-label"><span class="summary-icon">◷</span> Last 30 days</div>
+          <p class="summary-value">{{ last30DaysTotal | currency: 'EUR' }}</p>
+          <p class="summary-note">Including today</p>
+        </article>
+        <article class="summary-card">
+          <div class="summary-label"><span class="summary-icon">⌁</span> Last 7 days</div>
+          <p class="summary-value">{{ lastWeekTotal | currency: 'EUR' }}</p>
+          <p class="summary-note">A quick weekly check-in</p>
+        </article>
+      </section>
+
+      <div class="content-grid">
+        <section class="panel yearly-panel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">YOUR HISTORY</p>
+              <h2>Total expenses per year</h2>
+            </div>
+            <span class="heading-icon">▤</span>
+          </div>
+          <p class="section-hint">Choose a year to explore your monthly spending.</p>
+
+          @if (years.length === 0) {
+            <div class="empty-state">
+              <span class="empty-illustration">☼</span>
+              <h3>Your story starts here</h3>
+              <p>Add your first expense to see your yearly overview.</p>
+              <button class="text-button" type="button" (click)="showExpenseForm = true">
+                Add an expense <span aria-hidden="true">→</span>
+              </button>
+            </div>
+          } @else {
+            <div class="year-list">
+              @for (year of years; track year) {
+                <article class="year-item">
+                  <button class="year-row" type="button" (click)="toggleYear(year)">
+                    <span class="year-label">
+                      <span class="year-dot"></span>
+                      <span>{{ year }}</span>
+                    </span>
+                    <span class="year-total">{{ totalForYear(year) | currency: 'EUR' }}</span>
+                    <span class="chevron" [class.chevron-open]="expandedYear === year">⌄</span>
+                  </button>
+                  @if (expandedYear === year) {
+                    <div class="month-list">
+                      @for (month of monthsForYear(year); track month.key) {
+                        <div class="month-item">
+                          <div class="month-row">
+                            <span>{{ month.label }}</span>
+                            <strong>{{ month.total | currency: 'EUR' }}</strong>
+                            <button
+                              class="text-button month-detail-button"
+                              type="button"
+                              (click)="toggleMonth(month.key)"
+                            >
+                              {{ expandedMonth === month.key ? 'Hide categories' : 'See per categories' }}
+                            </button>
+                          </div>
+                          @if (expandedMonth === month.key) {
+                            <div class="category-breakdown">
+                              @for (category of categoriesForMonth(month.key); track category.name) {
+                                <div class="category-total">
+                                  <span>{{ category.name }}</span>
+                                  <span>{{ category.total | currency: 'EUR' }}</span>
+                                </div>
+                              }
+                            </div>
+                          }
+                        </div>
+                      }
+                    </div>
+                  }
+                </article>
+              }
+            </div>
+          }
+        </section>
+
+        <section class="panel recent-panel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">THE LATEST</p>
+              <h2>Recent expenses</h2>
+            </div>
+            <span class="heading-icon">✳</span>
+          </div>
+          @if (recentExpenses.length === 0) {
+            <div class="empty-state compact-empty">
+              <p>No expenses yet. Add one when you’re ready.</p>
+            </div>
+          } @else {
+            <div class="expense-list">
+              @for (expense of recentExpenses; track expense.id) {
+                <article class="expense-row">
+                  <span class="expense-avatar">{{ expense.category.name.slice(0, 1).toUpperCase() }}</span>
+                  <div class="expense-description">
+                    <strong>{{ expense.title }}</strong>
+                    <span>{{ expense.category.name }} · {{ expense.expenseDate | date: 'mediumDate' }}</span>
+                  </div>
+                  <strong class="expense-amount">−{{ expense.amount | currency: 'EUR' }}</strong>
+                  <button
+                    class="icon-button delete-button"
+                    type="button"
+                    [attr.aria-label]="'Delete ' + expense.title"
+                    (click)="deleteExpense(expense)"
+                  >×</button>
+                </article>
+              }
+            </div>
+          }
+        </section>
+      </div>
+
+      <footer class="dashboard-footer">
+        <span>Small steps make a big difference.</span>
+        <span>{{ expenses.length }} expense{{ expenses.length === 1 ? '' : 's' }} tracked</span>
+      </footer>
+    </section>
+  }
+
+  @if (!user) {
+    <div class="auth-backdrop">
+      <section class="auth-card" aria-labelledby="auth-heading">
+        <div class="auth-brand">
+          <span class="brand-mark">p</span>
+          <span>Pennywise</span>
+        </div>
+        <div class="auth-intro">
+          <p class="eyebrow">A LITTLE MORE CLARITY</p>
+          <h1 id="auth-heading">{{ authTitle }}</h1>
+          <p>Keep your spending in view, one day at a time.</p>
+        </div>
+
+        <div class="auth-tabs" role="tablist" aria-label="Account access">
+          <button
+            type="button"
+            role="tab"
+            [attr.aria-selected]="authMode === 'login'"
+            [class.active]="authMode === 'login'"
+            (click)="setAuthMode('login')"
+          >Log in</button>
+          <button
+            type="button"
+            role="tab"
+            [attr.aria-selected]="authMode === 'register'"
+            [class.active]="authMode === 'register'"
+            (click)="setAuthMode('register')"
+          >Create account</button>
+        </div>
+
+        @if (authError) {
+          <div class="notice notice-error" role="alert">{{ authError }}</div>
+        }
+
+        <form class="auth-form" #authForm="ngForm" (ngSubmit)="submitAuth()">
+          @if (authMode === 'register') {
+            <label>
+              Your name
+              <input
+                name="authName"
+                [(ngModel)]="authName"
+                type="text"
+                autocomplete="name"
+                placeholder="Alex Example"
+                required
+                maxlength="100"
+              />
+            </label>
+          }
+          <label>
+            Email address
+            <input
+              name="authEmail"
+              [(ngModel)]="authEmail"
+              type="email"
+              email
+              #emailModel="ngModel"
+              autocomplete="email"
+              placeholder="you@example.com"
+              required
+              maxlength="254"
+            />
+            @if (emailModel.invalid && emailModel.touched) {
+              <span class="field-error">Enter a valid email address.</span>
+            }
+          </label>
+          <label>
+            Password
+            <input
+              name="authPassword"
+              [(ngModel)]="authPassword"
+              type="password"
+              [attr.autocomplete]="authMode === 'login' ? 'current-password' : 'new-password'"
+              placeholder="At least 8 characters"
+              required
+              minlength="8"
+              maxlength="128"
+            />
+          </label>
+          <button
+            class="button button-primary auth-submit"
+            type="submit"
+            [disabled]="busy || authForm.invalid"
+          >
+            {{ busy ? 'One moment…' : authMode === 'login' ? 'Log in' : 'Create account' }}
+            @if (!busy) { <span aria-hidden="true">→</span> }
+          </button>
+        </form>
+        <p class="auth-footnote">Your spending data is private to your account.</p>
+      </section>
+    </div>
+  }
+
+  @if (showExpenseForm) {
+    <div class="modal-backdrop" (click)="showExpenseForm = false">
+      <section
+        class="form-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="expense-modal-title"
+        (click)="$event.stopPropagation()"
+      >
+        <button class="icon-button modal-close" type="button" aria-label="Close" (click)="showExpenseForm = false">×</button>
+        <p class="eyebrow">KEEP TRACK</p>
+        <h2 id="expense-modal-title">Add new expense</h2>
+        <p class="modal-copy">A few details are all it takes.</p>
+        @if (pageError) { <div class="notice notice-error" role="alert">{{ pageError }}</div> }
+        @if (categories.length === 0) {
+          <div class="inline-empty">
+            <p>You need a category before you can add an expense.</p>
+            <button class="text-button" type="button" (click)="showExpenseForm = false; showCategoryForm = true">
+              Create a category <span aria-hidden="true">→</span>
+            </button>
+          </div>
+        } @else {
+          <form class="modal-form" (ngSubmit)="addExpense()">
+            <label>
+              Title
+              <input name="expenseTitle" [(ngModel)]="expenseTitle" required maxlength="255" placeholder="Coffee with a friend" />
+            </label>
+            <div class="form-row">
+              <label>
+                Amount (€)
+                <input
+                  name="expenseAmount"
+                  [(ngModel)]="expenseAmount"
+                  type="text"
+                  inputmode="decimal"
+                  pattern="^(?=.*[1-9])\d{1,10}(\.\d{1,2})?$"
+                  required
+                  placeholder="0.00"
+                />
+              </label>
+              <label>
+                Date
+                <input name="expenseDate" [(ngModel)]="expenseDate" type="date" required />
+              </label>
+            </div>
+            <label>
+              Category
+              <select name="expenseCategoryId" [(ngModel)]="expenseCategoryId" required>
+                @for (category of categories; track category.id) {
+                  <option [ngValue]="category.id">{{ category.name }}</option>
+                }
+              </select>
+            </label>
+            <label>
+              Description <span class="optional-label">Optional</span>
+              <textarea name="expenseDescription" [(ngModel)]="expenseDescription" rows="3" maxlength="255" placeholder="Add a note if you like"></textarea>
+            </label>
+            <div class="modal-actions">
+              <button class="button button-quiet" type="button" (click)="showExpenseForm = false">Cancel</button>
+              <button class="button button-primary" type="submit" [disabled]="busy">
+                {{ busy ? 'Saving…' : 'Save expense' }}
+              </button>
+            </div>
+          </form>
+        }
+      </section>
+    </div>
+  }
+
+  @if (showCategoryForm) {
+    <div class="modal-backdrop" (click)="showCategoryForm = false">
+      <section
+        class="form-modal category-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="category-modal-title"
+        (click)="$event.stopPropagation()"
+      >
+        <button class="icon-button modal-close" type="button" aria-label="Close" (click)="showCategoryForm = false">×</button>
+        <p class="eyebrow">MAKE IT YOURS</p>
+        <h2 id="category-modal-title">Manage categories</h2>
+        @if (pageError) { <div class="notice notice-error" role="alert">{{ pageError }}</div> }
+        <form class="category-create-form" (ngSubmit)="addCategory()">
+          <label>
+            New category
+            <input name="categoryName" [(ngModel)]="categoryName" required maxlength="100" placeholder="e.g. Transport" />
+          </label>
+          <button class="button button-primary" type="submit" [disabled]="busy">Add</button>
+        </form>
+        <div class="manage-category-list">
+          @if (categories.length === 0) {
+            <p class="section-hint">Your categories will appear here.</p>
+          }
+          @for (category of categories; track category.id) {
+            <div class="manage-category-row">
+              <span><span class="category-dot"></span>{{ category.name }}</span>
+              <button class="text-button danger-text" type="button" (click)="deleteCategory(category)">Delete</button>
+            </div>
+          }
+        </div>
+      </section>
+    </div>
+  }
+</main>
